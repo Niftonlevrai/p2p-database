@@ -136,8 +136,8 @@ func enableLibp2pDebugLogging() {
 
 // initializeP2PInfrastructure creates the process-level infrastructure (once per process)
 func initializeP2PInfrastructure(config common.Config) (*P2PInfrastructure, error) {
-	// Enable debug logging for libp2p components only if user's logger has debug enabled
-	if config.Logger.DebugEnabled() {
+	// Enable debug logging for libp2p components if debug flag is set
+	if config.Debug {
 		enableLibp2pDebugLogging()
 		config.Logger.Debug("Enabled libp2p debug logging")
 	}

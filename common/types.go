@@ -16,6 +16,7 @@ type Config struct {
 	Logger               Logger                   // Logger for all internal operations
 	ListenPorts          ListenPorts              // Ports for different transports
 	RefreshInterval      time.Duration            // How often to refresh authorized wallets cache (default: 30s)
+	Debug                bool                     // Enable debug logging for p2p operations
 }
 
 // Function provided by node software to get authorized wallets
@@ -56,5 +57,4 @@ type Logger interface {
 	Info(msg string, keysAndValues ...interface{})
 	Warn(msg string, keysAndValues ...interface{})
 	Error(msg string, keysAndValues ...interface{})
-	DebugEnabled() bool // Check if debug logging is enabled
 }

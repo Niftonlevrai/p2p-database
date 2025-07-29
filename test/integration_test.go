@@ -1959,11 +1959,6 @@ func (l *TestLogger) Error(msg string, keysAndValues ...interface{}) {
 	fmt.Printf("ERROR: %s\n", msg)
 }
 
-func (l *TestLogger) DebugEnabled() bool {
-	// Return false since we don't show debug messages by default in tests
-	return false
-}
-
 // TestClientStartsBeforeBootstrap tests the scenario where a client node starts
 // before the bootstrap node is running, and should automatically connect when
 // the bootstrap node comes online later

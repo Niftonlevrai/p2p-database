@@ -1,7 +1,6 @@
 package common
 
 import (
-	"context"
 	"log/slog"
 )
 
@@ -29,10 +28,6 @@ func (l *slogLogger) Warn(msg string, keysAndValues ...interface{}) {
 
 func (l *slogLogger) Error(msg string, keysAndValues ...interface{}) {
 	l.logger.Error(msg, keysAndValues...)
-}
-
-func (l *slogLogger) DebugEnabled() bool {
-	return l.logger.Enabled(context.Background(), slog.LevelDebug)
 }
 
 // LiveKitLogger defines the interface expected by LiveKit logging
@@ -70,10 +65,4 @@ func (l *livekitLoggerAdapter) Warn(msg string, keysAndValues ...interface{}) {
 
 func (l *livekitLoggerAdapter) Error(msg string, keysAndValues ...interface{}) {
 	l.logger.Errorw(msg, nil, keysAndValues...)
-}
-
-func (l *livekitLoggerAdapter) DebugEnabled() bool {
-	// LiveKit loggers don't typically have a debug enabled check
-	// so we assume debug is always disabled
-	return false
 }

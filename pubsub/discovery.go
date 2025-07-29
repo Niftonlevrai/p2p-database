@@ -51,27 +51,20 @@ func (ds *DiscoveryService) StartDiscovery(ctx context.Context, databaseName str
 	return nil
 }
 
-// advertiseLoop periodically advertises this node to the network
+// advertiseLoop starts persistent advertisement for this node
 func (ds *DiscoveryService) advertiseLoop(ctx context.Context, rendezvous string) {
-	// Immediate advertisement on startup
+	ds.logger.Debug("Starting persistent advertisement", "rendezvous", rendezvous)
+
+	// Call util.Advertise ONLY ONCE - it creates its own goroutine with internal loop
+	// that handles periodic re-advertisement based on TTL
 	util.Advertise(ctx, ds.discovery, rendezvous)
-	ds.logger.Debug("Initial advertisement on rendezvous", "rendezvous", rendezvous)
 
-	// Continue with periodic advertisements (fast interval for quick connectivity)
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
+	ds.logger.Debug("Advertisement started for", "rendezvous", rendezvous)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			// Advertise ourselves
-			util.Advertise(ctx, ds.discovery, rendezvous)
-			ds.logger.Debug("Advertised on rendezvous",
-				"rendezvous", rendezvous)
-		}
-	}
+	// Wait for context cancellation - the util.Advertise goroutine will handle everything else
+	<-ctx.Done()
+
+	ds.logger.Debug("Advertisement stopped for", "rendezvous", rendezvous, "reason", ctx.Err())
 }
 
 // findPeersLoop periodically searches for peers

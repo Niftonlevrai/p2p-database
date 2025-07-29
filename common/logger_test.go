@@ -105,8 +105,4 @@ func TestLiveKitLoggerAdapter(t *testing.T) {
 		t.Errorf("Expected nil error, got %v", mockLogger.errorCalls[0].Error)
 	}
 
-	// Test DebugEnabled
-	if !adapter.DebugEnabled() {
-		t.Error("Expected DebugEnabled to return true")
-	}
 }
