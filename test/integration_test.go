@@ -266,6 +266,7 @@ func TestUnauthorizedNodeBlocked(t *testing.T) {
 		GetAuthorizedWallets: mockGetUnauthorizedWallets, // Returns only node3, but authorized network only allows 0,1,2
 		GetBootstrapNodes:    mockGetBootstrapNodesForClients("127.0.0.1", 15001, 15002),
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15007,
 			TCP:  15008,
@@ -851,6 +852,7 @@ func setupNode(t *testing.T, ctx context.Context, logger common.Logger, privateK
 		GetAuthorizedWallets: getAuthorizedWallets,
 		GetBootstrapNodes:    getBootstrapNodes,
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: quicPort,
 			TCP:  tcpPort,
@@ -952,6 +954,7 @@ func TestMultiNodePubSub(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    mockGetBootstrapNodesForBootstrap,
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15001,
 			TCP:  15002,
@@ -996,6 +999,7 @@ func TestMultiNodePubSub(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    mockGetBootstrapNodesForClients("127.0.0.1", 15001, 15002),
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15003,
 			TCP:  15004,
@@ -1024,6 +1028,7 @@ func TestMultiNodePubSub(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    mockGetBootstrapNodesForClients("127.0.0.1", 15001, 15002),
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15005,
 			TCP:  15006,
@@ -1406,6 +1411,7 @@ func TestBootstrapRetryEmptyNodes(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    mockGetBootstrapNodesForBootstrap,
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15001,
 			TCP:  15002,
@@ -1432,6 +1438,7 @@ func TestBootstrapRetryEmptyNodes(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    delayedBootstrapFunc, // This will retry
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15003,
 			TCP:  15004,
@@ -1507,6 +1514,7 @@ func TestReadinessStateTracking(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    mockGetBootstrapNodesForBootstrap, // Returns empty
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15007,
 			TCP:  15008,
@@ -1615,6 +1623,7 @@ func TestBootstrapRetryStopsWhenReady(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    trackingBootstrapFunc,
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15011,
 			TCP:  15012,
@@ -1730,6 +1739,7 @@ func TestBootstrapNodeFailover(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    mockGetBootstrapNodesForBootstrap, // Returns empty
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15001,
 			TCP:  15002,
@@ -1749,6 +1759,7 @@ func TestBootstrapNodeFailover(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    multiBootstrapFunc,
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15003,
 			TCP:  15004,
@@ -1840,6 +1851,7 @@ func TestBootstrapNodeFailover(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    multiBootstrapFunc, // Node2 can also use Node1 as bootstrap
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 15005,
 			TCP:  15006,
@@ -2147,6 +2159,7 @@ func TestAllNodesBootstrapAndAuthorized(t *testing.T) {
 		GetAuthorizedWallets: allNodesAuthorizedFunc,
 		GetBootstrapNodes:    allNodesBootstrapFunc,
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 17001,
 			TCP:  17002,
@@ -2166,6 +2179,7 @@ func TestAllNodesBootstrapAndAuthorized(t *testing.T) {
 		GetAuthorizedWallets: allNodesAuthorizedFunc,
 		GetBootstrapNodes:    allNodesBootstrapFunc,
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 17003,
 			TCP:  17004,
@@ -2185,6 +2199,7 @@ func TestAllNodesBootstrapAndAuthorized(t *testing.T) {
 		GetAuthorizedWallets: allNodesAuthorizedFunc,
 		GetBootstrapNodes:    allNodesBootstrapFunc,
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		ListenPorts: common.ListenPorts{
 			QUIC: 17005,
 			TCP:  17006,
@@ -2422,6 +2437,7 @@ func TestAuthorizationCacheRefresh(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    mockGetBootstrapNodesForBootstrap,
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		RefreshInterval:      refreshInterval,
 		ListenPorts: common.ListenPorts{
 			QUIC: 16001,
@@ -2452,6 +2468,7 @@ func TestAuthorizationCacheRefresh(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    mockGetBootstrapNodesForClients("127.0.0.1", 16001, 16002),
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		RefreshInterval:      refreshInterval,
 		ListenPorts: common.ListenPorts{
 			QUIC: 16003,
@@ -2503,6 +2520,7 @@ func TestAuthorizationCacheRefresh(t *testing.T) {
 		GetAuthorizedWallets: mockGetAuthorizedWallets,
 		GetBootstrapNodes:    mockGetBootstrapNodesForClients("127.0.0.1", 16001, 16002),
 		Logger:               logger,
+		SkipBootstrapWait:    true, // Skip bootstrap waiting in tests for faster execution
 		RefreshInterval:      refreshInterval,
 		ListenPorts: common.ListenPorts{
 			QUIC: 16005,

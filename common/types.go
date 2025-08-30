@@ -17,6 +17,7 @@ type Config struct {
 	ListenPorts          ListenPorts              // Ports for different transports
 	RefreshInterval      time.Duration            // How often to refresh authorized wallets cache (default: 30s)
 	Debug                bool                     // Enable debug logging for p2p operations
+	SkipBootstrapWait    bool                     // Skip waiting for bootstrap nodes (useful for tests)
 }
 
 // Function provided by node software to get authorized wallets

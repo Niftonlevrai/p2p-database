@@ -14,11 +14,24 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/routing"
+	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	libp2pquic "github.com/libp2p/go-libp2p/p2p/transport/quic"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
+	"github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	"github.com/multiformats/go-multiaddr"
 )
+
+// notifee receives notifications of local peer discoveries via mDNS
+type notifee struct {
+	logger common.Logger
+}
+
+func (n *notifee) HandlePeerFound(pi peer.AddrInfo) {
+	n.logger.Debug("mDNS discovered local peer", "peer_id", pi.ID.String(), "addrs", pi.Addrs)
+}
 
 // P2PInfrastructure manages the libp2p resources for a single database connection
 type P2PInfrastructure struct {
@@ -27,6 +40,7 @@ type P2PInfrastructure struct {
 	gossipSub *pubsub.PubSub        // GossipSub instance for pub/sub messaging
 	connMgr   *connmgr.BasicConnMgr // Connection manager
 	discovery *DiscoveryService     // Peer discovery service
+	mdns      mdns.Service          // mDNS service for local discovery
 
 	// Configuration
 	logger common.Logger
@@ -173,7 +187,99 @@ func initializeP2PInfrastructure(config common.Config) (*P2PInfrastructure, erro
 		"tcp_port", config.ListenPorts.TCP,
 		"peer_id", peerID.String())
 
-	// Create libp2p host with all transports
+	// Variable to capture DHT created in routing function
+	var dht *dual.DHT
+
+	// Wait for bootstrap nodes to become available before creating libp2p host
+	// This ensures AutoRelay can be properly configured with static relays
+	var bootstrapNodes []common.BootstrapNode
+
+	if !config.SkipBootstrapWait {
+		maxRetries := 10
+		retryDelay := 2 * time.Second
+		maxWaitTime := 30 * time.Second
+
+		config.Logger.Info("Waiting for bootstrap nodes to become available...",
+			"max_wait_time", maxWaitTime, "max_retries", maxRetries)
+
+		ctx, cancel := context.WithTimeout(context.Background(), maxWaitTime)
+		defer cancel()
+
+		for i := 0; i < maxRetries; i++ {
+			select {
+			case <-ctx.Done():
+				config.Logger.Warn("Timeout waiting for bootstrap nodes, continuing without AutoRelay")
+				goto createHost
+			default:
+			}
+
+			if nodes, err := config.GetBootstrapNodes(context.Background()); err == nil && len(nodes) > 0 {
+				bootstrapNodes = nodes
+				config.Logger.Info("Bootstrap nodes available", "count", len(nodes), "attempt", i+1)
+				break
+			}
+
+			if i < maxRetries-1 {
+				config.Logger.Debug("Bootstrap nodes not available, retrying...",
+					"attempt", i+1, "max_retries", maxRetries, "delay", retryDelay)
+				time.Sleep(retryDelay)
+			} else {
+				config.Logger.Warn("No bootstrap nodes available after retries, continuing without AutoRelay")
+			}
+		}
+	} else {
+		// Skip bootstrap wait - try once and continue immediately
+		config.Logger.Debug("Skipping bootstrap wait (SkipBootstrapWait=true)")
+		if nodes, err := config.GetBootstrapNodes(context.Background()); err == nil && len(nodes) > 0 {
+			bootstrapNodes = nodes
+			config.Logger.Info("Bootstrap nodes available immediately", "count", len(nodes))
+		}
+	}
+
+createHost:
+
+	// Configure AutoRelay with bootstrap nodes as static relays
+	var autoRelayOpts []autorelay.Option
+	if len(bootstrapNodes) > 0 {
+		// Convert bootstrap nodes to peer.AddrInfo for relay usage
+		var relayPeers []peer.AddrInfo
+		for _, node := range bootstrapNodes {
+			// Create peer ID from public key
+			peerID, err := peer.Decode(node.PublicKey.String())
+			if err != nil {
+				continue
+			}
+
+			// Create multiaddresses from bootstrap node info
+			var addrs []multiaddr.Multiaddr
+			quicAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/udp/%d/quic-v1",
+				node.IP, node.QUICPort))
+			if err == nil {
+				addrs = append(addrs, quicAddr)
+			}
+
+			tcpAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d",
+				node.IP, node.TCPPort))
+			if err == nil {
+				addrs = append(addrs, tcpAddr)
+			}
+
+			if len(addrs) > 0 {
+				relayPeers = append(relayPeers, peer.AddrInfo{
+					ID:    peerID,
+					Addrs: addrs,
+				})
+			}
+		}
+
+		if len(relayPeers) > 0 {
+			autoRelayOpts = append(autoRelayOpts, autorelay.WithStaticRelays(relayPeers))
+			config.Logger.Info("Configured AutoRelay with bootstrap nodes as static relays",
+				"relay_count", len(relayPeers))
+		}
+	}
+
+	// Create libp2p host with integrated routing
 	host, err := libp2p.New(
 		libp2p.Identity(privateKey),
 		libp2p.ListenAddrStrings(
@@ -182,11 +288,28 @@ func initializeP2PInfrastructure(config common.Config) (*P2PInfrastructure, erro
 		),
 		libp2p.Transport(libp2pquic.NewTransport),
 		libp2p.Transport(tcp.NewTCPTransport),
+		libp2p.Transport(websocket.New), // WebSocket transport for better NAT traversal
 		libp2p.EnableRelay(),
+		// Conditionally enable AutoRelay if we have static relays configured
+		func() libp2p.Option {
+			if len(autoRelayOpts) > 0 {
+				return libp2p.EnableAutoRelay(autoRelayOpts...)
+			}
+			return libp2p.Option(func(*libp2p.Config) error { return nil }) // No-op if no relays
+		}(),
+		libp2p.EnableHolePunching(), // NAT hole punching for direct connections
+		// libp2p.EnableAutoNATService(),  // Not available in this version
 		libp2p.ConnectionManager(connManager),
 		libp2p.ConnectionGater(gater),
 		libp2p.NATPortMap(),
 		libp2p.EnableNATService(),
+		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+			// Create DHT and capture it for later use
+			// This integrates our DHT directly into the libp2p host
+			var err error
+			dht, err = dual.New(context.Background(), h)
+			return dht, err
+		}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create libp2p host (ports QUIC:%d TCP:%d may be in use): %w",
@@ -197,16 +320,15 @@ func initializeP2PInfrastructure(config common.Config) (*P2PInfrastructure, erro
 		"addresses", host.Addrs(),
 		"peer_id", host.ID().String())
 
-	// Initialize DHT for peer discovery
-	dht, err := dual.New(context.Background(), host)
-	if err != nil {
+	// DHT was created and captured in the routing function above
+	if dht == nil {
 		if closeErr := host.Close(); closeErr != nil {
 			config.Logger.Warn("Failed to close host during cleanup", "error", closeErr.Error())
 		}
-		return nil, fmt.Errorf("failed to create DHT: %w", err)
+		return nil, fmt.Errorf("failed to initialize DHT through routing")
 	}
 
-	config.Logger.Info("Initialized Kademlia DHT")
+	config.Logger.Info("Initialized Kademlia DHT with integrated routing")
 
 	// Initialize GossipSub for pub/sub messaging
 	gossipSub, err := pubsub.NewGossipSub(context.Background(), host)
@@ -222,6 +344,14 @@ func initializeP2PInfrastructure(config common.Config) (*P2PInfrastructure, erro
 	// Create discovery service
 	discoveryService := NewDiscoveryService(host, dht, config.Logger)
 
+	// Initialize mDNS for local discovery
+	mdnsService := mdns.NewMdnsService(host, fmt.Sprintf("p2p-database-mdns_%s", config.DatabaseName), &notifee{logger: config.Logger})
+	if err := mdnsService.Start(); err != nil {
+		config.Logger.Warn("Failed to start mDNS service", "error", err.Error())
+	} else {
+		config.Logger.Info("Started mDNS service for local discovery", "service_name", fmt.Sprintf("p2p-database-mdns_%s", config.DatabaseName))
+	}
+
 	// Create shutdown context for proper cleanup
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
@@ -232,6 +362,7 @@ func initializeP2PInfrastructure(config common.Config) (*P2PInfrastructure, erro
 		gossipSub:         gossipSub,
 		connMgr:           connManager,
 		discovery:         discoveryService,
+		mdns:              mdnsService,
 		logger:            config.Logger,
 		isReady:           false, // Initially not ready
 		getBootstrapNodes: config.GetBootstrapNodes,

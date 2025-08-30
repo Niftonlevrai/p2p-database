@@ -74,6 +74,14 @@ func (db *DB) Subscribe(ctx context.Context, topic string, handler common.PubSub
 	// Start message listener goroutine
 	go db.messageListener(listenerCtx, topicSub, topicName)
 
+	// Start topic-specific peer discovery to help GossipSub mesh formation
+	if err := db.infrastructure.discovery.StartTopicDiscovery(ctx, db.instance.name, topic); err != nil {
+		db.infrastructure.logger.Warn("Failed to start topic discovery",
+			"topic", topic,
+			"error", err.Error())
+		// Don't fail the subscription, but log the issue
+	}
+
 	db.infrastructure.logger.Info("Subscribed to topic",
 		"topic", topic,
 		"full_topic_name", topicName,
@@ -180,6 +188,9 @@ func (db *DB) Unsubscribe(ctx context.Context, topic string) error {
 			db.infrastructure.logger.Warn("Failed to close topic during unsubscribe", "topic", topic, "error", closeErr.Error())
 		}
 	}
+
+	// Stop topic-specific peer discovery
+	db.infrastructure.discovery.StopTopicDiscovery(topic)
 
 	// Remove from maps
 	delete(db.instance.subscriptions, topic)
@@ -319,7 +330,14 @@ func (db *DB) Disconnect(ctx context.Context) error {
 		db.infrastructure.logger.Debug("GossipSub will be closed when host closes")
 	}
 
-	// 2. Close DHT to stop peer discovery
+	// 2. Close mDNS service
+	if db.infrastructure.mdns != nil {
+		if closeErr := db.infrastructure.mdns.Close(); closeErr != nil {
+			db.infrastructure.logger.Warn("Failed to close mDNS during disconnect", "error", closeErr.Error())
+		}
+	}
+
+	// 3. Close DHT to stop peer discovery
 	if db.infrastructure.dht != nil {
 		if closeErr := db.infrastructure.dht.Close(); closeErr != nil {
 			db.infrastructure.logger.Warn("Failed to close DHT during disconnect", "error", closeErr.Error())
