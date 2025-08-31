@@ -26,11 +26,38 @@ import (
 
 // notifee receives notifications of local peer discoveries via mDNS
 type notifee struct {
+	host   host.Host
 	logger common.Logger
 }
 
 func (n *notifee) HandlePeerFound(pi peer.AddrInfo) {
 	n.logger.Debug("mDNS discovered local peer", "peer_id", pi.ID.String(), "addrs", pi.Addrs)
+
+	// Skip if it's ourselves
+	if pi.ID == n.host.ID() {
+		return
+	}
+
+	// Skip if already connected
+	if n.host.Network().Connectedness(pi.ID) == network.Connected {
+		n.logger.Debug("Already connected to mDNS discovered peer", "peer_id", pi.ID.String())
+		return
+	}
+
+	// Try to connect to the discovered peer
+	connectCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	if err := n.host.Connect(connectCtx, pi); err != nil {
+		n.logger.Debug("Failed to connect to mDNS discovered peer",
+			"peer_id", pi.ID.String(),
+			"error", err.Error())
+		return
+	}
+
+	n.logger.Info("Connected to mDNS discovered local peer",
+		"peer_id", pi.ID.String(),
+		"addrs", pi.Addrs)
 }
 
 // P2PInfrastructure manages the libp2p resources for a single database connection
@@ -240,9 +267,9 @@ createHost:
 
 	// Configure AutoRelay with bootstrap nodes as static relays
 	var autoRelayOpts []autorelay.Option
+	var relayPeers []peer.AddrInfo
 	if len(bootstrapNodes) > 0 {
 		// Convert bootstrap nodes to peer.AddrInfo for relay usage
-		var relayPeers []peer.AddrInfo
 		for _, node := range bootstrapNodes {
 			// Create peer ID from public key
 			peerID, err := peer.Decode(node.PublicKey.String())
@@ -293,12 +320,11 @@ createHost:
 		// Conditionally enable AutoRelay if we have static relays configured
 		func() libp2p.Option {
 			if len(autoRelayOpts) > 0 {
-				return libp2p.EnableAutoRelay(autoRelayOpts...)
+				return libp2p.EnableAutoRelayWithStaticRelays(relayPeers)
 			}
 			return libp2p.Option(func(*libp2p.Config) error { return nil }) // No-op if no relays
 		}(),
 		libp2p.EnableHolePunching(), // NAT hole punching for direct connections
-		// libp2p.EnableAutoNATService(),  // Not available in this version
 		libp2p.ConnectionManager(connManager),
 		libp2p.ConnectionGater(gater),
 		libp2p.NATPortMap(),
@@ -345,7 +371,7 @@ createHost:
 	discoveryService := NewDiscoveryService(host, dht, config.Logger)
 
 	// Initialize mDNS for local discovery
-	mdnsService := mdns.NewMdnsService(host, fmt.Sprintf("p2p-database-mdns_%s", config.DatabaseName), &notifee{logger: config.Logger})
+	mdnsService := mdns.NewMdnsService(host, fmt.Sprintf("p2p-database-mdns_%s", config.DatabaseName), &notifee{host: host, logger: config.Logger})
 	if err := mdnsService.Start(); err != nil {
 		config.Logger.Warn("Failed to start mDNS service", "error", err.Error())
 	} else {
