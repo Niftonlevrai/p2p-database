@@ -1,3 +1,5 @@
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+
 # P2P Distributed Pub/Sub System for DePIN
 
 A distributed peer-to-peer publish/subscribe network built on libp2p, designed for secure, decentralized messaging in **DePIN (Decentralized Physical Infrastructure Network)** applications. The system provides **permissionless node participation** through **Solana smart contract registry integration**.
